@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>DEJAVU - Control de Asistencia</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --rojo:#C0392B;
+    --rojo-osc:#9B2218;
+    --dorado:#D4890A;
+    --dorado-cl:#F0B429;
+    --gris:#595959;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Segoe UI', Arial, sans-serif;
+    background:linear-gradient(180deg,#fff 0%,#FBEBEA 100%);
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:16px;
+  }
+  header{
+    width:100%;
+    max-width:480px;
+    background:linear-gradient(135deg,var(--rojo) 0%,var(--rojo-osc) 100%);
+    color:#fff;
+    border-radius:14px;
+    padding:18px 20px;
+    text-align:center;
+    box-shadow:0 4px 14px rgba(155,34,24,0.25);
+    margin-bottom:16px;
+  }
+  header h1{margin:0;font-size:1.25rem;}
+  header p{margin:4px 0 0;font-size:0.8rem;opacity:0.9;}
+
+  .card{
+    width:100%;
+    max-width:480px;
+    background:#fff;
+    border-radius:14px;
+    padding:18px;
+    box-shadow:0 2px 10px rgba(0,0,0,0.08);
+    margin-bottom:14px;
+  }
+
+  .tabs{display:flex;gap:8px;width:100%;max-width:480px;margin-bottom:14px;}
+  .tab-btn{
+    flex:1;padding:10px;border:none;border-radius:10px;
+    background:#eee;color:var(--gris);font-weight:600;font-size:0.85rem;cursor:pointer;
+  }
+  .tab-btn.active{background:var(--rojo);color:#fff;}
+
+  input[type=text], textarea{
+    width:100%;padding:12px;font-size:1rem;border:2px solid #ddd;border-radius:10px;
+    margin-bottom:10px;font-family:inherit;
+  }
+  input[type=text]:focus, textarea:focus{border-color:var(--rojo);outline:none;}
+
+  button.primary{
+    width:100%;padding:14px;background:var(--rojo);color:#fff;border:none;border-radius:10px;
+    font-size:1rem;font-weight:700;cursor:pointer;
+  }
+  button.primary:active{background:var(--rojo-osc);}
+  button.secondary{
+    width:100%;padding:12px;background:#fff;color:var(--rojo);border:2px solid var(--rojo);
+    border-radius:10px;font-size:0.95rem;font-weight:600;cursor:pointer;margin-top:8px;
+  }
+
+  #reader{width:100%;border-radius:10px;overflow:hidden;margin-bottom:10px;}
+
+  .result{
+    text-align:center;padding:20px;border-radius:12px;margin-bottom:14px;font-weight:600;
+  }
+  .result.ok{background:#E7F6E8;color:#1E7A2E;border:2px solid #1E7A2E;}
+  .result.err{background:#FBEAEA;color:var(--rojo-osc);border:2px solid var(--rojo);}
+  .result .marca{font-size:1.4rem;color:var(--dorado);margin:6px 0;}
+  .result .hora{font-size:1.1rem;}
+
+  .hint{font-size:0.78rem;color:var(--gris);text-align:center;margin-top:4px;}
+
+  .btn-marca{
+    padding:14px 8px;border-radius:10px;border:2px solid #ddd;background:#fff;
+    color:var(--gris);font-weight:700;font-size:0.9rem;cursor:pointer;text-align:center;
+  }
+  .btn-marca.sugerida{
+    border-color:var(--dorado);background:var(--dorado-cl);color:var(--rojo-osc);
+  }
+  .btn-marca:active{transform:scale(0.97);}
+  label{font-size:0.85rem;color:var(--gris);font-weight:600;display:block;margin-bottom:4px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🍞 Panadería Déjà Vu</h1>
+  <p>Control de Asistencia de Personal</p>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" id="tabMarcar" onclick="cambiarTab('marcar')">Marcar Asistencia</button>
+  <button class="tab-btn" id="tabJustificar" onclick="cambiarTab('justificar')">Registrar Permiso</button>
+</div>
+
+<!-- ===================== TAB MARCAR ===================== -->
+<div class="card" id="panelMarcar">
+  <label>Escanea tu carnet</label>
+  <div id="reader"></div>
+  <p class="hint">Con lector físico: solo escanea, el código se captura solo.<br>Con cámara: presiona "Usar cámara".</p>
+  <button class="secondary" id="btnCamara" onclick="iniciarCamara()">📷 Usar cámara</button>
+
+  <label style="margin-top:14px;">O escribe tu código manualmente</label>
+  <input type="text" id="inputCodigo" placeholder="DJ-EMP-001" autocomplete="off">
+
+  <div id="seleccionMarca" style="display:none;">
+    <p class="hint" id="nombreEmpleado" style="font-weight:700;font-size:0.95rem;color:var(--rojo-osc);margin-bottom:8px;"></p>
+    <div id="botonesMarca" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;"></div>
+  </div>
+
+  <div id="resultadoMarcar"></div>
+</div>
+
+<!-- ===================== TAB JUSTIFICAR ===================== -->
+<div class="card" id="panelJustificar" style="display:none;">
+  <label>Código de empleado</label>
+  <input type="text" id="inputCodigoJust" placeholder="DJ-EMP-001" autocomplete="off">
+  <label>Motivo de la inasistencia / permiso</label>
+  <textarea id="inputMotivo" rows="3" placeholder="Ej. Cita médica ISSS, permiso personal, etc."></textarea>
+  <button class="primary" onclick="justificar()">Registrar Justificación</button>
+  <p class="hint">Quedará marcada como "Pendiente" hasta que RRHH la confirme.</p>
+  <div id="resultadoJustificar"></div>
+</div>
+
+<script>
+  // ================== CONFIGURACION ==================
+  // Reemplaza esta URL por la de tu Apps Script Web App publicado
+  // (Implementar > Nueva implementación > Aplicación web > acceso "Cualquier usuario")
+  const APPS_SCRIPT_URL = 'PON_AQUI_LA_URL_DE_TU_WEB_APP';
+  // =====================================================
+
+  let html5QrCode;
+  let camaraActiva = false;
+
+  function cambiarTab(tab){
+    document.getElementById('tabMarcar').classList.toggle('active', tab==='marcar');
+    document.getElementById('tabJustificar').classList.toggle('active', tab==='justificar');
+    document.getElementById('panelMarcar').style.display = tab==='marcar' ? 'block':'none';
+    document.getElementById('panelJustificar').style.display = tab==='justificar' ? 'block':'none';
+    detenerCamara();
+  }
+
+  // Input de texto actúa como "receptor" del lector físico (funciona como teclado):
+  // mantenemos el foco ahí y al presionar Enter (lo que hace el lector al terminar de leer)
+  // se consulta cuál es la siguiente marca sugerida, y se muestran los 4 botones.
+  const inputCodigo = document.getElementById('inputCodigo');
+  inputCodigo.focus();
+  inputCodigo.addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      buscarSiguienteMarca();
+    }
+  });
+  document.addEventListener('click', function(){
+    if(document.getElementById('panelMarcar').style.display !== 'none' && !camaraActiva){
+      inputCodigo.focus();
+    }
+  });
+
+  const NOMBRES_MARCA = ['Entrada', 'Salida Almuerzo', 'Entrada Almuerzo', 'Salida'];
+  let codigoActual = '';
+
+  async function buscarSiguienteMarca(){
+    const codigo = inputCodigo.value.trim();
+    const resultadoDiv = document.getElementById('resultadoMarcar');
+    const seleccionDiv = document.getElementById('seleccionMarca');
+    seleccionDiv.style.display = 'none';
+    resultadoDiv.innerHTML = '';
+
+    if(!codigo){
+      resultadoDiv.innerHTML = '<div class="result err">Escanea o escribe tu código.</div>';
+      return;
+    }
+
+    resultadoDiv.innerHTML = '<div class="result">Buscando...</div>';
+    try{
+      const data = await llamarBackend({ accion:'siguienteMarca', codigo: codigo });
+      resultadoDiv.innerHTML = '';
+      if(!data.success){
+        resultadoDiv.innerHTML = `<div class="result err">${data.message}</div>`;
+        return;
+      }
+      if(data.completo){
+        resultadoDiv.innerHTML = `<div class="result err">${data.nombre} ya completó los 4 marcajes de hoy.</div>`;
+        return;
+      }
+
+      codigoActual = codigo;
+      document.getElementById('nombreEmpleado').textContent = data.nombre + ' — selecciona qué estás marcando:';
+      const botonesDiv = document.getElementById('botonesMarca');
+      botonesDiv.innerHTML = '';
+      NOMBRES_MARCA.forEach(tipo => {
+        const yaMarcado = data.marcasHoy.includes(tipo);
+        const btn = document.createElement('button');
+        btn.textContent = yaMarcado ? tipo + ' ✓' : tipo;
+        btn.className = 'btn-marca' + (tipo === data.sugerida ? ' sugerida' : '');
+        if(yaMarcado){
+          btn.disabled = true;
+          btn.style.opacity = '0.4';
+        } else {
+          btn.onclick = () => marcar(tipo);
+        }
+        botonesDiv.appendChild(btn);
+      });
+      seleccionDiv.style.display = 'block';
+    } catch(err){
+      resultadoDiv.innerHTML = '<div class="result err">Error de conexión. Intenta de nuevo.</div>';
+    }
+  }
+
+  function iniciarCamara(){
+    if(camaraActiva){ detenerCamara(); return; }
+    camaraActiva = true;
+    document.getElementById('btnCamara').textContent = '⏹ Detener cámara';
+    html5QrCode = new Html5Qrcode("reader");
+    html5QrCode.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: 220 },
+      (decodedText) => {
+        inputCodigo.value = decodedText.trim();
+        detenerCamara();
+        buscarSiguienteMarca();
+      },
+      (errorMessage) => {}
+    ).catch((err) => {
+      alert('No se pudo iniciar la cámara: ' + err);
+      camaraActiva = false;
+      document.getElementById('btnCamara').textContent = '📷 Usar cámara';
+    });
+  }
+
+  function detenerCamara(){
+    if(html5QrCode && camaraActiva){
+      html5QrCode.stop().then(()=>{
+        html5QrCode.clear();
+      }).catch(()=>{});
+    }
+    camaraActiva = false;
+    document.getElementById('btnCamara').textContent = '📷 Usar cámara';
+  }
+
+  async function llamarBackend(payload){
+    const resp = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      // text/plain evita el preflight CORS que Apps Script no responde bien
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+    return resp.json();
+  }
+
+  async function marcar(tipo){
+    const codigo = codigoActual || inputCodigo.value.trim();
+    const resultadoDiv = document.getElementById('resultadoMarcar');
+    const seleccionDiv = document.getElementById('seleccionMarca');
+    if(!codigo){
+      resultadoDiv.innerHTML = '<div class="result err">Escanea o escribe tu código.</div>';
+      return;
+    }
+    seleccionDiv.style.display = 'none';
+    resultadoDiv.innerHTML = '<div class="result">Registrando...</div>';
+    try{
+      const data = await llamarBackend({ accion:'marcar', codigo: codigo, tipo: tipo });
+      if(data.success){
+        resultadoDiv.innerHTML = `
+          <div class="result ok">
+            ${data.nombre}
+            <div class="marca">${data.tipo.toUpperCase()}</div>
+            <div class="hora">${data.hora}</div>
+          </div>`;
+      } else {
+        resultadoDiv.innerHTML = `<div class="result err">${data.message}</div>`;
+      }
+    } catch(err){
+      resultadoDiv.innerHTML = '<div class="result err">Error de conexión. Intenta de nuevo.</div>';
+    }
+    codigoActual = '';
+    inputCodigo.value = '';
+    inputCodigo.focus();
+  }
+
+  async function justificar(){
+    const codigo = document.getElementById('inputCodigoJust').value.trim();
+    const motivo = document.getElementById('inputMotivo').value.trim();
+    const resultadoDiv = document.getElementById('resultadoJustificar');
+    if(!codigo || !motivo){
+      resultadoDiv.innerHTML = '<div class="result err">Completa el código y el motivo.</div>';
+      return;
+    }
+    resultadoDiv.innerHTML = '<div class="result">Registrando...</div>';
+    try{
+      const data = await llamarBackend({ accion:'justificar', codigo: codigo, motivo: motivo });
+      if(data.success){
+        resultadoDiv.innerHTML = `<div class="result ok">${data.message}</div>`;
+        document.getElementById('inputCodigoJust').value = '';
+        document.getElementById('inputMotivo').value = '';
+      } else {
+        resultadoDiv.innerHTML = `<div class="result err">${data.message}</div>`;
+      }
+    } catch(err){
+      resultadoDiv.innerHTML = '<div class="result err">Error de conexión. Intenta de nuevo.</div>';
+    }
+  }
+</script>
+
+</body>
+</html>
