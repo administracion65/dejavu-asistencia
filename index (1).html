@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>DEJAVU - Control de Asistencia</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --rojo:#C0392B;
+    --rojo-osc:#9B2218;
+    --dorado:#D4890A;
+    --dorado-cl:#F0B429;
+    --gris:#595959;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Segoe UI', Arial, sans-serif;
+    background:linear-gradient(180deg,#fff 0%,#FBEBEA 100%);
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:16px;
+  }
+  header{
+    width:100%;
+    max-width:480px;
+    background:linear-gradient(135deg,var(--rojo) 0%,var(--rojo-osc) 100%);
+    color:#fff;
+    border-radius:14px;
+    padding:18px 20px;
+    text-align:center;
+    box-shadow:0 4px 14px rgba(155,34,24,0.25);
+    margin-bottom:16px;
+  }
+  header h1{margin:0;font-size:1.25rem;}
+  header p{margin:4px 0 0;font-size:0.8rem;opacity:0.9;}
+
+  .card{
+    width:100%;
+    max-width:480px;
+    background:#fff;
+    border-radius:14px;
+    padding:18px;
+    box-shadow:0 2px 10px rgba(0,0,0,0.08);
+    margin-bottom:14px;
+  }
+
+  .tabs{display:flex;gap:8px;width:100%;max-width:480px;margin-bottom:14px;}
+  .tab-btn{
+    flex:1;padding:10px;border:none;border-radius:10px;
+    background:#eee;color:var(--gris);font-weight:600;font-size:0.85rem;cursor:pointer;
+  }
+  .tab-btn.active{background:var(--rojo);color:#fff;}
+
+  input[type=text], textarea{
+    width:100%;padding:12px;font-size:1rem;border:2px solid #ddd;border-radius:10px;
+    margin-bottom:10px;font-family:inherit;
+  }
+  input[type=text]:focus, textarea:focus{border-color:var(--rojo);outline:none;}
+
+  button.primary{
+    width:100%;padding:14px;background:var(--rojo);color:#fff;border:none;border-radius:10px;
+    font-size:1rem;font-weight:700;cursor:pointer;
+  }
+  button.primary:active{background:var(--rojo-osc);}
+  button.secondary{
+    width:100%;padding:12px;background:#fff;color:var(--rojo);border:2px solid var(--rojo);
+    border-radius:10px;font-size:0.95rem;font-weight:600;cursor:pointer;margin-top:8px;
+  }
+
+  #reader{width:100%;border-radius:10px;overflow:hidden;margin-bottom:10px;}
+
+  .result{
+    text-align:center;padding:20px;border-radius:12px;margin-bottom:14px;font-weight:600;
+  }
+  .result.ok{background:#E7F6E8;color:#1E7A2E;border:2px solid #1E7A2E;}
+  .result.err{background:#FBEAEA;color:var(--rojo-osc);border:2px solid var(--rojo);}
+  .result .marca{font-size:1.4rem;color:var(--dorado);margin:6px 0;}
+  .result .hora{font-size:1.1rem;}
+
+  .hint{font-size:0.78rem;color:var(--gris);text-align:center;margin-top:4px;}
+
+  .btn-marca{
+    padding:14px 8px;border-radius:10px;border:2px solid #ddd;background:#fff;
+    color:var(--gris);font-weight:700;font-size:0.9rem;cursor:pointer;text-align:center;
+  }
+  .btn-marca.sugerida{
+    border-color:var(--dorado);background:var(--dorado-cl);color:var(--rojo-osc);
+  }
+  .btn-marca:active{transform:scale(0.97);}
+  label{font-size:0.85rem;color:var(--gris);font-weight:600;display:block;margin-bottom:4px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🍞 Panadería Déjà Vu</h1>
+  <p>Control de Asistencia de Personal</p>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" id="tabMarcar" onclick="cambiarTab('marcar')">Asistencia</button>
+  <button class="tab-btn" id="tabJustificar" onclick="cambiarTab('justificar')">Permiso</button>
+</div>
+<div class="tabs">
+  <button class="tab-btn" id="tabAnticipo" onclick="cambiarTab('anticipo')">Anticipo</button>
+  <button class="tab-btn" id="tabPrestamo" onclick="cambiarTab('prestamo')">Préstamo</button>
+</div>
+
+<!-- ===================== TAB MARCAR ===================== -->
+<div class="card" id="panelMarcar">
+  <label>Escanea tu carnet</label>
+  <div id="reader"></div>
+  <p class="hint">Con lector físico: solo escanea, el código se captura solo.<br>Con cámara: presiona "Usar cámara".</p>
+  <button class="secondary" id="btnCamara" onclick="iniciarCamara('marcar')">📷 Usar cámara</button>
+
+  <label style="margin-top:14px;">O escribe tu código manualmente</label>
+  <input type="text" id="inputCodigo" placeholder="DJ-EMP-001" autocomplete="off">
+
+  <div id="seleccionMarca" style="display:none;">
+    <p class="hint" id="nombreEmpleado" style="font-weight:700;font-size:0.95rem;color:var(--rojo-osc);margin-bottom:8px;"></p>
+    <div id="botonesMarca" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;"></div>
+    <label>Comentarios (opcional)</label>
+    <textarea id="inputComentarioMarca" rows="2" placeholder="Ej. Llegó tarde por lluvia, permiso verbal del encargado, etc."></textarea>
+  </div>
+
+  <div id="resultadoMarcar"></div>
+</div>
+
+<!-- ===================== TAB JUSTIFICAR ===================== -->
+<div class="card" id="panelJustificar" style="display:none;">
+  <label>Escanea el carnet del empleado</label>
+  <div id="readerJust"></div>
+  <p class="hint">Con lector físico: solo escanea, el código se captura solo.<br>Con cámara: presiona "Usar cámara".</p>
+  <button class="secondary" id="btnCamaraJust" onclick="iniciarCamara('justificar')">📷 Usar cámara</button>
+
+  <label style="margin-top:14px;">O escribe el código manualmente</label>
+  <input type="text" id="inputCodigoJust" placeholder="DJ-EMP-001" autocomplete="off">
+  <label>Motivo de la inasistencia / permiso</label>
+  <textarea id="inputMotivo" rows="2" placeholder="Ej. Cita médica ISSS, permiso personal, etc."></textarea>
+  <label>Comentarios adicionales (opcional)</label>
+  <textarea id="inputComentarioJust" rows="2" placeholder="Detalles adicionales, quién autorizó, etc."></textarea>
+  <label>Evidencia / constancia (foto, opcional)</label>
+  <input type="file" id="inputEvidencia" accept="image/*" capture="environment" style="margin-bottom:10px;">
+
+  <button class="primary" onclick="justificar()">Registrar Justificación</button>
+  <p class="hint">Quedará marcada como "Pendiente" hasta que RRHH la confirme.</p>
+  <div id="resultadoJustificar"></div>
+</div>
+
+<!-- ===================== TAB ANTICIPO ===================== -->
+<div class="card" id="panelAnticipo" style="display:none;">
+  <label>Escanea tu carnet</label>
+  <div id="readerAnticipo"></div>
+  <button class="secondary" id="btnCamaraAnticipo" onclick="iniciarCamara('anticipo')">📷 Usar cámara</button>
+  <label style="margin-top:14px;">O escribe tu código manualmente</label>
+  <input type="text" id="inputCodigoAnticipo" placeholder="DJ-EMP-001" autocomplete="off">
+  <button class="secondary" onclick="consultarTopeAnticipo()">Consultar tope disponible</button>
+
+  <div id="infoTopeAnticipo" style="display:none;">
+    <p class="hint" id="nombreAnticipo" style="font-weight:700;font-size:0.95rem;color:var(--rojo-osc);margin-top:10px;"></p>
+    <div class="result ok" id="topeAnticipoTexto" style="margin-bottom:10px;"></div>
+    <label>Monto que solicitas</label>
+    <input type="text" id="inputMontoAnticipo" placeholder="Ej. 50.00" inputmode="decimal">
+    <label>Motivo (opcional)</label>
+    <textarea id="inputMotivoAnticipo" rows="2" placeholder="Ej. Gastos médicos, imprevistos, etc."></textarea>
+    <button class="primary" onclick="solicitarAnticipo()">Solicitar Anticipo</button>
+  </div>
+  <p class="hint">Si el monto excede tu tope disponible, la solicitud queda marcada como "Requiere excepción" para que RRHH la revise.</p>
+  <div id="resultadoAnticipo"></div>
+</div>
+
+<!-- ===================== TAB PRESTAMO ===================== -->
+<div class="card" id="panelPrestamo" style="display:none;">
+  <label>Escanea tu carnet</label>
+  <div id="readerPrestamo"></div>
+  <button class="secondary" id="btnCamaraPrestamo" onclick="iniciarCamara('prestamo')">📷 Usar cámara</button>
+  <label style="margin-top:14px;">O escribe tu código manualmente</label>
+  <input type="text" id="inputCodigoPrestamo" placeholder="DJ-EMP-001" autocomplete="off">
+  <label>Monto que solicitas</label>
+  <input type="text" id="inputMontoPrestamo" placeholder="Ej. 200.00" inputmode="decimal">
+  <label>Motivo</label>
+  <textarea id="inputMotivoPrestamo" rows="2" placeholder="Ej. Emergencia familiar, gastos escolares, etc."></textarea>
+  <button class="primary" onclick="solicitarPrestamo()">Solicitar Préstamo</button>
+  <p class="hint">Queda "Pendiente" hasta que RRHH lo apruebe y defina el plan de pago.</p>
+  <div id="resultadoPrestamo"></div>
+</div>
+
+<script>
+  // ================== CONFIGURACION ==================
+  // Reemplaza esta URL por la de tu Apps Script Web App publicado
+  // (Implementar > Nueva implementación > Aplicación web > acceso "Cualquier usuario")
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw-rSEroHXb3I5AUJaJ2qhYyx1OrJMDY3oXRZxjhtUykF9DQT9hLe0C5rw6H2MVv_2_/exec';
+  // =====================================================
+
+  let html5QrCode;
+  let camaraActiva = false;
+  let readerActivo = null; // 'reader' o 'readerJust'
+
+  function cambiarTab(tab){
+    const tabs = ['marcar','justificar','anticipo','prestamo'];
+    const idMap = { marcar:'tabMarcar', justificar:'tabJustificar', anticipo:'tabAnticipo', prestamo:'tabPrestamo' };
+    const panelMap = { marcar:'panelMarcar', justificar:'panelJustificar', anticipo:'panelAnticipo', prestamo:'panelPrestamo' };
+    tabs.forEach(t => {
+      document.getElementById(idMap[t]).classList.toggle('active', t===tab);
+      document.getElementById(panelMap[t]).style.display = (t===tab) ? 'block' : 'none';
+    });
+    detenerCamara();
+    if(tab === 'marcar'){
+      inputCodigo.focus();
+    }
+  }
+
+  // Input de texto actúa como "receptor" del lector físico (funciona como teclado):
+  // mantenemos el foco ahí y al presionar Enter (lo que hace el lector al terminar de leer)
+  // se consulta cuál es la siguiente marca sugerida, y se muestran los 4 botones.
+  const inputCodigo = document.getElementById('inputCodigo');
+  inputCodigo.focus();
+  inputCodigo.addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      buscarSiguienteMarca();
+    }
+  });
+  document.addEventListener('click', function(){
+    if(document.getElementById('panelMarcar').style.display !== 'none' && !camaraActiva){
+      inputCodigo.focus();
+    }
+  });
+
+  const NOMBRES_MARCA = ['Entrada', 'Salida Almuerzo', 'Entrada Almuerzo', 'Salida'];
+  let codigoActual = '';
+
+  async function buscarSiguienteMarca(){
+    const codigo = inputCodigo.value.trim();
+    const resultadoDiv = document.getElementById('resultadoMarcar');
+    const seleccionDiv = document.getElementById('seleccionMarca');
+    seleccionDiv.style.display = 'none';
+    resultadoDiv.innerHTML = '';
+
+    if(!codigo){
+      resultadoDiv.innerHTML = '<div class="result err">Escanea o escribe tu código.</div>';
+      return;
+    }
+
+    resultadoDiv.innerHTML = '<div class="result">Buscando...</div>';
+    try{
+      const data = await llamarBackend({ accion:'siguienteMarca', codigo: codigo });
+      resultadoDiv.innerHTML = '';
+      if(!data.success){
+        resultadoDiv.innerHTML = `<div class="result err">${data.message}</div>`;
+        return;
+      }
+      if(data.completo){
+        resultadoDiv.innerHTML = `<div class="result err">${data.nombre} ya completó los 4 marcajes de hoy.</div>`;
+        return;
+      }
+
+      codigoActual = codigo;
+      document.getElementById('nombreEmpleado').textContent = data.nombre + ' — selecciona qué estás marcando:';
+      const botonesDiv = document.getElementById('botonesMarca');
+      botonesDiv.innerHTML = '';
+      NOMBRES_MARCA.forEach(tipo => {
+        const yaMarcado = data.marcasHoy.includes(tipo);
+        const btn = document.createElement('button');
+        btn.textContent = yaMarcado ? tipo + ' ✓' : tipo;
+        btn.className = 'btn-marca' + (tipo === data.sugerida ? ' sugerida' : '');
+        if(yaMarcado){
+          btn.disabled = true;
+          btn.style.opacity = '0.4';
+        } else {
+          btn.onclick = () => marcar(tipo);
+        }
+        botonesDiv.appendChild(btn);
+      });
+      seleccionDiv.style.display = 'block';
+    } catch(err){
+      resultadoDiv.innerHTML = '<div class="result err">Error de conexión. Intenta de nuevo.</div>';
+    }
+  }
+
+  const READER_CONFIG = {
+    marcar:     { divId: 'reader',         btnId: 'btnCamara',         inputId: 'inputCodigo' },
+    justificar: { divId: 'readerJust',     btnId: 'btnCamaraJust',     inputId: 'inputCodigoJust' },
+    anticipo:   { divId: 'readerAnticipo', btnId: 'btnCamaraAnticipo', inputId: 'inputCodigoAnticipo' },
+    prestamo:   { divId: 'readerPrestamo', btnId: 'btnCamaraPrestamo', inputId: 'inputCodigoPrestamo' }
+  };
+
+  function iniciarCamara(target){
+    if(camaraActiva){ detenerCamara(); return; }
+    camaraActiva = true;
+    readerActivo = target;
+    const cfg = READER_CONFIG[target];
+    document.getElementById(cfg.btnId).textContent = '⏹ Detener cámara';
+    html5QrCode = new Html5Qrcode(cfg.divId);
+    html5QrCode.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: 220 },
+      (decodedText) => {
+        document.getElementById(cfg.inputId).value = decodedText.trim();
+        detenerCamara();
+        if(target === 'marcar'){
+          buscarSiguienteMarca();
+        } else if(target === 'anticipo'){
+          consultarTopeAnticipo();
+        }
+        // en justificar y prestamo solo se llena el campo
+      },
+      (errorMessage) => {}
+    ).catch((err) => {
+      alert('No se pudo iniciar la cámara: ' + err);
+      camaraActiva = false;
+      document.getElementById(cfg.btnId).textContent = '📷 Usar cámara';
+    });
+  }
+
+  function detenerCamara(){
+    if(html5QrCode && camaraActiva){
+      html5QrCode.stop().then(()=>{
+        html5QrCode.clear();
+      }).catch(()=>{});
+    }
+    if(readerActivo){
+      const cfg = READER_CONFIG[readerActivo];
+      document.getElementById(cfg.btnId).textContent = '📷 Usar cámara';
+    }
+    camaraActiva = false;
+    readerActivo = null;
+  }
+
+  async function llamarBackend(payload){
+    const resp = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      // text/plain evita el preflight CORS que Apps Script no responde bien
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+    return resp.json();
+  }
+
+  async function marcar(tipo){
+    const codigo = codigoActual || inputCodigo.value.trim();
+    const comentario = document.getElementById('inputComentarioMarca').value.trim();
+    const resultadoDiv = document.getElementById('resultadoMarcar');
+    const seleccionDiv = document.getElementById('seleccionMarca');
+    if(!codigo){
+      resultadoDiv.innerHTML = '<div class="result err">Escanea o escribe tu código.</div>';
+      return;
+    }
+    seleccionDiv.style.display = 'none';
+    resultadoDiv.innerHTML = '<div class="result">Registrando...</div>';
+    try{
+      const data = await llamarBackend({ accion:'marcar', codigo: codigo, tipo: tipo, comentario: comentario });
+      if(data.success){
+        resultadoDiv.innerHTML = `
+          <div class="result ok">
+            ${data.nombre}
+            <div class="marca">${data.tipo.toUpperCase()}</div>
+            <div class="hora">${data.hora}</div>
+          </div>`;
+      } else {
+        resultadoDiv.innerHTML = `<div class="result err">${data.message}</div>`;
+      }
+    } catch(err){
+      resultadoDiv.innerHTML = '<div class="result err">Error de conexión. Intenta de nuevo.</div>';
+    }
+    codigoActual = '';
+    inputCodigo.value = '';
+    document.getElementById('inputComentarioMarca').value = '';
+    inputCodigo.focus();
+  }
+
+  function leerArchivoComoBase64(file){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function justificar(){
+    const codigo = document.getElementById('inputCodigoJust').value.trim();
+    const motivo = document.getElementById('inputMotivo').value.trim();
+    const comentario = document.getElementById('inputComentarioJust').value.trim();
+    const archivoInput = document.getElementById('inputEvidencia');
+    const resultadoDiv = document.getElementById('resultadoJustificar');
+    if(!codigo || !motivo){
+      resultadoDiv.innerHTML = '<div class="result err">Completa el código y el motivo.</div>';
+      return;
+    }
+    resultadoDiv.innerHTML = '<div class="result">Registrando...</div>';
+    try{
+      const payload = { accion:'justificar', codigo: codigo, motivo: motivo, comentario: comentario };
+      const archivo = archivoInput.files[0];
+      if(archivo){
+        payload.evidenciaBase64 = await leerArchivoComoBase64(archivo);
+        payload.evidenciaNombre = archivo.name;
+        payload.evidenciaTipo = archivo.type;
+      }
+      const data = await llamarBackend(payload);
+      if(data.success){
+        resultadoDiv.innerHTML = `<div class="result ok">${data.message}</div>`;
+        document.getElementById('inputCodigoJust').value = '';
+        document.getElementById('inputMotivo').value = '';
+        document.getElementById('inputComentarioJust').value = '';
+        archivoInput.value = '';
+      } else {
+        resultadoDiv.innerHTML = `<div class="result err">${data.message}</div>`;
+      }
+    } catch(err){
+      resultadoDiv.innerHTML = '<div class="result err">Error de conexión. Intenta de nuevo.</div>';
+    }
+  }  async function consultarTopeAnticipo(){
+    const codigo = document.getElementById('inputCodigoAnticipo').value.trim();
+    const resultadoDiv = document.getElementById('resultadoAnticipo');
+    const infoDiv = document.getElementById('infoTopeAnticipo');
+    infoDiv.style.display = 'none';
+    resultadoDiv.innerHTML = '';
+    if(!codigo){
+      resultadoDiv.innerHTML = '<div class="result err">Escanea o escribe tu código.</div>';
+      return;
+    }
+    resultadoDiv.innerHTML = '<div class="result">Consultando...</div>';
+    try{
+      const data = await llamarBackend({ accion:'topeAnticipo', codigo: codigo });
+      resultadoDiv.innerHTML = '';
+      if(!data.success){
+        resultadoDiv.innerHTML = `<div class="result err">${data.message}</div>`;
+        return;
+      }
+      document.getElementById('nombreAnticipo').textContent = data.nombre;
+      document.getElementById('topeAnticipoTexto').textContent =
+        `Tope disponible: $${data.tope.toFixed(2)}  (${data.diasLaborados} días laborados de esta quincena)`;
+      infoDiv.style.display = 'block';
+      infoDiv.dataset.codigo = codigo;
+    } catch(err){
+      resultadoDiv.innerHTML = '<div class="result err">Error de conexión. Intenta de nuevo.</div>';
+    }
+  }
+
+  async function solicitarAnticipo(){
+    const infoDiv = document.getElementById('infoTopeAnticipo');
+    const codigo = infoDiv.dataset.codigo;
+    const monto = parseFloat(document.getElementById('inputMontoAnticipo').value);
+    const motivo = document.getElementById('inputMotivoAnticipo').value.trim();
+    const resultadoDiv = document.getElementById('resultadoAnticipo');
+    if(!monto || monto <= 0){
+      resultadoDiv.innerHTML = '<div class="result err">Escribe un monto válido.</div>';
+      return;
+    }
+    resultadoDiv.innerHTML = '<div class="result">Enviando solicitud...</div>';
+    try{
+      const data = await llamarBackend({ accion:'anticipo', codigo: codigo, monto: monto, motivo: motivo });
+      if(data.success){
+        resultadoDiv.innerHTML = `<div class="result ok">${data.message}</div>`;
+        infoDiv.style.display = 'none';
+        document.getElementById('inputCodigoAnticipo').value = '';
+        document.getElementById('inputMontoAnticipo').value = '';
+        document.getElementById('inputMotivoAnticipo').value = '';
+      } else {
+        resultadoDiv.innerHTML = `<div class="result err">${data.message}</div>`;
+      }
+    } catch(err){
+      resultadoDiv.innerHTML = '<div class="result err">Error de conexión. Intenta de nuevo.</div>';
+    }
+  }
+
+  async function solicitarPrestamo(){
+    const codigo = document.getElementById('inputCodigoPrestamo').value.trim();
+    const monto = parseFloat(document.getElementById('inputMontoPrestamo').value);
+    const motivo = document.getElementById('inputMotivoPrestamo').value.trim();
+    const resultadoDiv = document.getElementById('resultadoPrestamo');
+    if(!codigo){
+      resultadoDiv.innerHTML = '<div class="result err">Escanea o escribe tu código.</div>';
+      return;
+    }
+    if(!monto || monto <= 0 || !motivo){
+      resultadoDiv.innerHTML = '<div class="result err">Completa el monto y el motivo.</div>';
+      return;
+    }
+    resultadoDiv.innerHTML = '<div class="result">Enviando solicitud...</div>';
+    try{
+      const data = await llamarBackend({ accion:'prestamo', codigo: codigo, monto: monto, motivo: motivo });
+      if(data.success){
+        resultadoDiv.innerHTML = `<div class="result ok">${data.message}</div>`;
+        document.getElementById('inputCodigoPrestamo').value = '';
+        document.getElementById('inputMontoPrestamo').value = '';
+        document.getElementById('inputMotivoPrestamo').value = '';
+      } else {
+        resultadoDiv.innerHTML = `<div class="result err">${data.message}</div>`;
+      }
+    } catch(err){
+      resultadoDiv.innerHTML = '<div class="result err">Error de conexión. Intenta de nuevo.</div>';
+    }
+  }
+</script>
+
+</body>
+</html>
